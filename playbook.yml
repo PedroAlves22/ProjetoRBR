@@ -1,0 +1,90 @@
+---
+ - hosts: wordpress
+   remote_user: ubuntu
+   become: yes
+   tasks:
+
+     - name: Update cache 
+       apt:
+        update_cache: yes
+
+     - name: Upgrade dos pacotes
+       apt: 
+         name: "*"
+         state: latest
+
+     - name: instala dependencias Docker
+       become_user: root
+       apt:
+         name: "{{ item }}"
+         state: present
+       with_items:
+         - apt-transport-https
+         - ca-certificates
+         - curl
+         - software-properties-common
+         - python3-pip
+   
+     - name: instala modulos python que podem ser necessarios
+       become_user: root
+       pip:
+         name: "{{ item }}"
+         state: present
+       with_items:
+         - urllib3
+         - pyOpenSSL
+         - ndg-httpsclient
+         - pyasn1
+
+     - name: adiciona a chave de assinatura de pacotes Ubuntu do Docker
+       become_user: root
+       apt_key:
+         url: https://download.docker.com/linux/ubuntu/gpg
+         state: present
+           
+     - name: adiciona o repositorio Docker ao sistema
+       become_user: root
+       apt_repository:
+         repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable"
+         state: present
+        
+     - name: instala o pacote docker-ce
+       become_user: root
+       apt:
+         name: docker-ce
+         state: present
+         update_cache: yes
+
+     - name: instala a biblioteca para gerenciamento docker
+       become_user: root
+       apt:
+         name: python3-docker
+
+     - name: cria o diretório onde a base de dados MySQL sera salva
+       become_user: root
+       file:
+         path: /dados-banco
+         state: directory
+         owner: root
+         group: root
+         mode: 0755
+
+     - name: cria container MySQL, com dados salvos na pasta /dados-banco
+       become_user: root
+       docker_container:
+         name: "banco"
+         image: "mysql:5.7"
+         env:
+           MYSQL_ROOT_PASSWORD: password
+         volumes:
+           - /dados-banco:/var/lib/mysql
+
+     - name: cria container do wordpress
+       become_user: root
+       docker_container:
+         name: "ColegioRBR"
+         image: "wordpress"
+         links:
+           - "banco:mysql"
+         ports:
+           - "80:80"
